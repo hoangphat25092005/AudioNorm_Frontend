@@ -1,4 +1,4 @@
-import React, { createContext, useState, ReactNode } from 'react';
+import React, { createContext, useState, ReactNode, useEffect } from 'react';
 
 interface ThemeContextType {
   theme: string;
@@ -18,9 +18,19 @@ export const ThemeProvider: React.FC<ThemeProviderProps> = ({ children }) => {
         setTheme((prevTheme) => (prevTheme === 'light' ? 'dark' : 'light'));
     };
 
+    useEffect(() => {
+        if (theme === 'dark') {
+            document.documentElement.classList.add('dark');
+        } else {
+            document.documentElement.classList.remove('dark');
+        }
+    }, [theme]);
+
     return (
         <ThemeContext.Provider value={{ theme, toggleTheme }}>
-            <div className={`${theme}-theme`}>{children}</div>
+            <div className="min-h-screen bg-gray-50 dark:bg-dark-bg text-gray-900 dark:text-white">
+                {children}
+            </div>
         </ThemeContext.Provider>
     );
 };
