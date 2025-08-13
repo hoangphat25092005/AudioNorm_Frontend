@@ -28,7 +28,7 @@ export const ThemeProvider: React.FC<ThemeProviderProps> = ({ children }) => {
 
     return (
         <ThemeContext.Provider value={{ theme, toggleTheme }}>
-            <div className="min-h-screen bg-gray-50 dark:bg-dark-bg text-gray-900 dark:text-white">
+            <div className="min-h-screen bg-gray-50 dark:bg-dark-bg text-primary dark:text-white">
                 {children}
             </div>
         </ThemeContext.Provider>

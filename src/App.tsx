@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { ThemeProvider } from './contexts/ThemeContext';
+import { AuthProvider, useAuth } from './contexts/AuthContext';
 import Layout from './components/Layout';
 import Header from './components/Header';
 import Login from './components/Login';
@@ -9,7 +10,9 @@ import Feedback from './components/Feedback';
 import Library from './components/Library';
 import { CloudArrowUpIcon, BookOpenIcon, ChatBubbleLeftEllipsisIcon } from '@heroicons/react/24/outline';
 
-const App: React.FC = () => {
+// Create a separate component that uses the useAuth hook
+const AppContent: React.FC = () => {
+  const { isLoggedIn, loading } = useAuth();
   const [currentView, setCurrentView] = useState<'home' | 'upload' | 'library' | 'feedback' | 'login' | 'register'>('upload');
 
   const handleLoginClick = () => {
@@ -19,7 +22,11 @@ const App: React.FC = () => {
   const handleRegisterClick = () => {
     setCurrentView('register');
   };
-
+  const handleLoginSuccess = () => {
+    // Close login modal and switch to upload view
+    setCurrentView('upload');
+  };
+  
   const handleNavClick = (view: 'upload' | 'library' | 'feedback') => {
     setCurrentView(view);
   };
@@ -29,12 +36,30 @@ const App: React.FC = () => {
     // Handle file upload logic here
   };
 
+  // Show loading spinner while checking authentication
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-screen">
+        <div className="text-lg">Loading...</div>
+      </div>
+    );
+  }
+
   const renderMainContent = () => {
+    // If not logged in, show login/register forms
+    if (!isLoggedIn) {
+      switch (currentView) {
+        case 'login':
+          return <Login onRegisterClick={handleRegisterClick} onLoginSuccess={handleLoginSuccess} />;
+        case 'register':
+          return <Register onLoginClick={handleLoginClick} />;
+        default:
+          return <Login onRegisterClick={handleRegisterClick} onLoginSuccess={handleLoginSuccess} />;
+      }
+    }
+    
+    // If logged in, show the main app content
     switch (currentView) {
-      case 'login':
-        return <Login onRegisterClick={handleRegisterClick} />;
-      case 'register':
-        return <Register onLoginClick={handleLoginClick} />;
       case 'upload':
         return <FileUpload onFilesUploaded={handleFilesUploaded} />;
       case 'library':
@@ -42,15 +67,10 @@ const App: React.FC = () => {
       case 'feedback':
         return <Feedback />;
       default:
-        return (
-          <div className="p-5">
-            <h2 className="text-2xl font-semibold">Welcome to AudioNorm</h2>
-          </div>
-        );
+        return <FileUpload onFilesUploaded={handleFilesUploaded} />;
     }
   };
 
-  // ...existing code...
   const navItems = [
     { label: 'Upload file', icon: CloudArrowUpIcon, key: 'upload' as const },
     { label: 'Library', icon: BookOpenIcon, key: 'library' as const },
@@ -58,45 +78,66 @@ const App: React.FC = () => {
   ];
 
   return (
-    <ThemeProvider>
-      <Layout>
-        <div className="flex h-screen relative">
-          <div className="w-52 bg-white dark:bg-dark-sidebar border-r border-gray-200 dark:border-gray-700 flex flex-col relative">
-            <div className="fixed top-0 left-0 right-0 w-full z-50 bg-white dark:bg-dark-sidebar border-b border-gray-200 dark:border-gray-700 px-4 py-6 flex justify-between items-center">
-              <h1 className="text-2xl font-semibold text-primary">
-                Audio<span className="text-gray-900 dark:text-white">Norm</span>
-              </h1>
-              <Header onLoginClick={handleLoginClick} />
+    <Layout>
+      <div className="flex flex-col min-h-screen">
+        {/* Full-width header */}
+        <div className="w-full bg-white dark:bg-dark-sidebar border-b border-gray-200 dark:border-gray-700 px-6 py-4 flex justify-between items-center">
+          <h1 className="text-2xl font-semibold text-primary">
+            Audio<span className="text-gray-900 dark:text-white">Norm</span>
+          </h1>
+          <Header onLoginClick={handleLoginClick} />
+        </div>
+        
+        {/* Main content area with sidebar and content */}
+        <div className="flex flex-1">
+          {/* Only show sidebar if user is logged in */}
+          {isLoggedIn && (
+            <div className="w-52 min-h-full bg-white dark:bg-dark-sidebar border-r border-gray-200 dark:border-gray-700 flex flex-col">
+              <nav className="flex-1 pb-4">
+                {navItems.map((item, index) => {
+                  const IconComponent = item.icon;
+                  const isActive = currentView === item.key;
+                  return (
+                    <div
+                      key={index}
+                      onClick={() => handleNavClick(item.key)}
+                      className={`
+                        flex items-center px-4 py-3 mx-0 cursor-pointer transition-colors duration-200 
+                        border-b border-transparent dark:border-gray-600 
+                        hover:bg-blue-50 dark:hover:bg-blue-900/20 hover:border-l-4 hover:border-l-primary
+                        ${isActive ? 'bg-blue-50 dark:bg-blue-900/20 border-l-4 border-l-primary' : ''}
+                      `}
+                    >
+                      <IconComponent className={`w-5 h-5 mr-3 ${isActive ? 'text-primary' : 'text-gray-600 dark:text-gray-300'}`} />
+                      <span className={`${isActive ? 'text-primary font-medium' : 'text-gray-700 dark:text-gray-200'}`}>
+                        {item.label}
+                      </span>
+                    </div>
+                  );
+                })}
+              </nav>
             </div>
-            <nav className="flex-1 pt-20 pb-4">
-              {navItems.map((item, index) => {
-                const IconComponent = item.icon;
-                const isActive = currentView === item.key;
-                return (
-                  <div
-                    key={index}
-                    onClick={() => handleNavClick(item.key)}
-                    className={`
-                      flex items-center px-4 py-3 mx-0 cursor-pointer transition-colors duration-200 
-                      border-b border-transparent dark:border-gray-600 
-                      hover:bg-blue-50 dark:hover:bg-blue-900/20 hover:border-l-4 hover:border-l-primary
-                      ${isActive ? 'bg-blue-50 dark:bg-blue-900/20 border-l-4 border-l-primary' : ''}
-                    `}
-                  >
-                    <IconComponent className={`w-5 h-5 mr-3 ${isActive ? 'text-primary' : 'text-gray-600 dark:text-gray-300'}`} />
-                    <span className={`${isActive ? 'text-primary font-medium' : 'text-gray-700 dark:text-gray-200'}`}>
-                      {item.label}
-                    </span>
-                  </div>
-                );
-              })}
-            </nav>
-          </div>
-          <div className="flex-1 bg-gray-50 dark:bg-dark-bg relative mt-20">
-            {renderMainContent()}
+          )}
+          
+          {/* Main content area */}
+          <div className="flex-1 min-h-full bg-gray-50 dark:bg-dark-bg">
+            <div className="w-full">
+              {renderMainContent()}
+            </div>
           </div>
         </div>
-      </Layout>
+      </div>
+    </Layout>
+  );
+};
+
+// Main App component that wraps everything with providers
+const App: React.FC = () => {
+  return (
+    <ThemeProvider>
+      <AuthProvider>
+        <AppContent />
+      </AuthProvider>
     </ThemeProvider>
   );
 };

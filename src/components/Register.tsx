@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-
+import { registerUser } from '../services/api';
 interface RegisterProps {
     onLoginClick: () => void;
 }
@@ -11,6 +11,8 @@ const Register: React.FC<RegisterProps> = ({ onLoginClick }) => {
         password: '',
         confirmPassword: ''
     });
+    const [error, setError] = useState<string | null>(null);
+    const [loading, setLoading] = useState(false);
 
     const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const { name, value } = e.target;
@@ -20,18 +22,43 @@ const Register: React.FC<RegisterProps> = ({ onLoginClick }) => {
         }));
     };
 
-    const handleSubmit = (e: React.FormEvent) => {
+    const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
-        console.log('Registration data:', formData);
+        setError(null);
+        
+        if (formData.password !== formData.confirmPassword) {
+            setError("Passwords don't match");
+            return;
+        }
+        
+        setLoading(true);
+        try {
+            await registerUser({
+                username: formData.username,
+                email: formData.email,
+                password: formData.password,
+                confirm_password: formData.confirmPassword
+            });
+            // On successful registration, redirect to login
+            onLoginClick();
+        } catch (error) {
+            setError(error instanceof Error ? error.message : 'Registration failed');
+        } finally {
+            setLoading(false);
+        }
     };
 
     return (
-        <div className="bg-dark-sidebar p-8 rounded-lg w-full max-w-md backdrop-blur-sm border border-gray-600 dark:border-gray-700 mx-auto mt-8">
+        <div className="dark:bg-dark-sidebar bg-white p-8 rounded-lg w-full max-w-md backdrop-blur-sm border border-gray-600 dark:border-gray-700 mx-auto mt-8">
             <h2 className="text-center text-2xl font-semibold text-primary mb-6">Register</h2>
-            
+            {error && (
+                <div className="mb-4 p-3 bg-red-100 border border-red-400 text-red-700 rounded">
+                    {error}
+                </div>
+            )}
             <form onSubmit={handleSubmit}>
                 <div className="mb-4">
-                    <label htmlFor="username" className="block mb-2 font-medium text-gray-300 dark:text-gray-200">
+                    <label htmlFor="username" className="block mb-2 font-medium text-black dark:text-gray-200">
                         User name
                     </label>
                     <input
@@ -42,12 +69,12 @@ const Register: React.FC<RegisterProps> = ({ onLoginClick }) => {
                         value={formData.username}
                         onChange={handleInputChange}
                         required
-                        className="w-full p-3 border border-gray-600 dark:border-gray-600 rounded bg-gray-700 dark:bg-gray-700 text-gray-100 dark:text-white placeholder-gray-400 dark:placeholder-gray-400 focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 transition-colors"
+                        className="w-full p-3 border border-gray-600 dark:border-gray-600 rounded bg-gray-700 dark:bg-gray-700 text-black dark:text-white placeholder-gray-400 dark:placeholder-gray-400 focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 transition-colors"
                     />
                 </div>
 
                 <div className="mb-4">
-                    <label htmlFor="email" className="block mb-2 font-medium text-gray-300 dark:text-gray-200">
+                    <label htmlFor="email" className="block mb-2 font-medium text-black dark:text-gray-200">
                         Email
                     </label>
                     <input
@@ -58,12 +85,12 @@ const Register: React.FC<RegisterProps> = ({ onLoginClick }) => {
                         value={formData.email}
                         onChange={handleInputChange}
                         required
-                        className="w-full p-3 border border-gray-600 dark:border-gray-600 rounded bg-gray-700 dark:bg-gray-700 text-gray-100 dark:text-white placeholder-gray-400 dark:placeholder-gray-400 focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 transition-colors"
+                        className="w-full p-3 border border-gray-600 dark:border-gray-600 rounded bg-gray-400 dark:bg-gray-700 text-black dark:text-white placeholder-black dark:placeholder-gray-400 focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 transition-colors"
                     />
                 </div>
 
                 <div className="mb-4">
-                    <label htmlFor="password" className="block mb-2 font-medium text-gray-300 dark:text-gray-200">
+                    <label htmlFor="password" className="block mb-2 font-medium text-black dark:text-gray-200">
                         Password
                     </label>
                     <input
@@ -74,12 +101,12 @@ const Register: React.FC<RegisterProps> = ({ onLoginClick }) => {
                         value={formData.password}
                         onChange={handleInputChange}
                         required
-                        className="w-full p-3 border border-gray-600 dark:border-gray-600 rounded bg-gray-700 dark:bg-gray-700 text-gray-100 dark:text-white placeholder-gray-400 dark:placeholder-gray-400 focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 transition-colors"
+                        className="w-full p-3 border border-gray-600 dark:border-gray-600 rounded bg-gray-400 dark:bg-gray-700 text-black dark:text-white placeholder-black dark:placeholder-gray-400 focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 transition-colors"
                     />
                 </div>
 
                 <div className="mb-4">
-                    <label htmlFor="confirmPassword" className="block mb-2 font-medium text-gray-300 dark:text-gray-200">
+                    <label htmlFor="confirmPassword" className="block mb-2 font-medium text-black dark:text-gray-200">
                         Confirm password
                     </label>
                     <input
@@ -90,19 +117,20 @@ const Register: React.FC<RegisterProps> = ({ onLoginClick }) => {
                         value={formData.confirmPassword}
                         onChange={handleInputChange}
                         required
-                        className="w-full p-3 border border-gray-600 dark:border-gray-600 rounded bg-gray-700 dark:bg-gray-700 text-gray-100 dark:text-white placeholder-gray-400 dark:placeholder-gray-400 focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 transition-colors"
+                        className="w-full p-3 border border-gray-600 dark:border-gray-600 rounded bg-gray-400 dark:bg-gray-700 text-black dark:text-white placeholder-black dark:placeholder-gray-400 focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 transition-colors"
                     />
                 </div>
 
                 <button 
-                    type="submit" 
-                    className="w-full p-3 bg-primary text-white border-none rounded font-medium cursor-pointer transition-colors mt-4 hover:bg-primary-hover"
+                type="submit" 
+                disabled={loading}
+                className="w-full p-3 bg-primary text-white border-none rounded font-medium cursor-pointer transition-colors mt-4 hover:bg-primary-hover disabled:opacity-50"
                 >
-                    Register
+                {loading ? 'Registering...' : 'Register'}
                 </button>
             </form>
 
-            <p className="text-center mt-6 text-gray-300 dark:text-gray-200">
+            <p className="text-center mt-6 text-black dark:text-gray-200">
                 Already have an account?{' '}
                 <button 
                     onClick={onLoginClick} 

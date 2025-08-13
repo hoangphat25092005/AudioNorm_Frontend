@@ -1,13 +1,38 @@
 import React, { useState, useRef } from 'react';
 import { CloudArrowUpIcon } from '@heroicons/react/24/outline';
-
+import { uploadFiles } from '../services/api';
 interface FileUploadProps {
     onFilesUploaded?: (files: FileList) => void;
 }
 
 const FileUpload: React.FC<FileUploadProps> = ({ onFilesUploaded }) => {
+    // Your existing state
     const [isDragOver, setIsDragOver] = useState(false);
     const fileInputRef = useRef<HTMLInputElement>(null);
+    
+    // Add these states
+    const [uploading, setUploading] = useState(false);
+    const [uploadError, setUploadError] = useState<string | null>(null);
+    const [uploadSuccess, setUploadSuccess] = useState(false);
+
+    // Handle file upload
+    const handleFileUpload = async (files: FileList) => {
+        if (files.length === 0) return;
+        
+        setUploading(true);
+        setUploadError(null);
+        setUploadSuccess(false);
+        
+        try {
+            await uploadFiles(Array.from(files));
+            setUploadSuccess(true);
+            if (onFilesUploaded) onFilesUploaded(files);
+        } catch (error) {
+            setUploadError(error instanceof Error ? error.message : 'Upload failed');
+        } finally {
+            setUploading(false);
+        }
+    };
 
     const handleDragOver = (e: React.DragEvent) => {
         e.preventDefault();
@@ -24,8 +49,8 @@ const FileUpload: React.FC<FileUploadProps> = ({ onFilesUploaded }) => {
         setIsDragOver(false);
         
         const files = e.dataTransfer.files;
-        if (files.length > 0 && onFilesUploaded) {
-            onFilesUploaded(files);
+        if (files.length > 0) {
+            handleFileUpload(files);
         }
     };
 
@@ -35,28 +60,44 @@ const FileUpload: React.FC<FileUploadProps> = ({ onFilesUploaded }) => {
 
     const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const files = e.target.files;
-        if (files && files.length > 0 && onFilesUploaded) {
-            onFilesUploaded(files);
+        if (files && files.length > 0) {
+            handleFileUpload(files);
         }
     };
 
+
     return (
         <div className="flex flex-col items-center justify-center h-full p-8 max-w-4xl mx-auto">
+            {/* Status Messages */}
+            {uploadError && (
+                <div className="w-full max-w-2xl mb-4 p-3 bg-red-100 border border-red-400 text-red-700 rounded">
+                    {uploadError}
+                </div>
+            )}
+            
+            {uploadSuccess && (
+                <div className="w-full max-w-2xl mb-4 p-3 bg-green-100 border border-green-400 text-green-700 rounded">
+                    Files uploaded successfully!
+                </div>
+            )}
+
             {/* Main Upload Area */}
             <div
                 className={`
                     w-full max-w-2xl h-96 border-2 border-dashed rounded-lg
                     flex flex-col items-center justify-center
                     transition-all duration-200 cursor-pointer
-                    ${isDragOver 
-                        ? 'border-primary bg-primary/10 dark:bg-primary/20' 
-                        : 'border-gray-300 dark:border-gray-600 hover:border-primary hover:bg-gray-50 dark:hover:bg-gray-800'
+                    ${uploading 
+                        ? 'border-gray-300 bg-gray-100 dark:bg-gray-800 cursor-not-allowed opacity-50'
+                        : isDragOver 
+                            ? 'border-primary bg-primary/10 dark:bg-primary/20' 
+                            : 'border-gray-300 dark:border-gray-600 hover:border-primary hover:bg-gray-50 dark:hover:bg-gray-800'
                     }
                 `}
-                onDragOver={handleDragOver}
-                onDragLeave={handleDragLeave}
-                onDrop={handleDrop}
-                onClick={handleFileSelect}
+                onDragOver={uploading ? undefined : handleDragOver}
+                onDragLeave={uploading ? undefined : handleDragLeave}
+                onDrop={uploading ? undefined : handleDrop}
+                onClick={uploading ? undefined : handleFileSelect}
             >
                 {/* Upload Icon */}
                 <div className="mb-6">
@@ -65,18 +106,19 @@ const FileUpload: React.FC<FileUploadProps> = ({ onFilesUploaded }) => {
 
                 {/* Upload Text */}
                 <h2 className="text-xl font-medium text-gray-900 dark:text-white mb-4">
-                    Drop files or click choose files
+                    {uploading ? 'Uploading files...' : 'Drop files or click choose files'}
                 </h2>
 
                 {/* Choose Files Button */}
                 <button 
-                    className="px-6 py-2 border border-primary text-primary rounded hover:bg-primary hover:text-white transition-colors duration-200"
+                    disabled={uploading}
+                    className="px-6 py-2 border border-primary text-primary rounded hover:bg-primary hover:text-white transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
                     onClick={(e) => {
                         e.stopPropagation();
                         handleFileSelect();
                     }}
                 >
-                    Choose files
+                    {uploading ? 'Uploading...' : 'Choose files'}
                 </button>
 
                 {/* Hidden File Input */}
