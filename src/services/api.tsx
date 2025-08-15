@@ -86,6 +86,7 @@ export interface AudioFile {
 // Helper function for API requests
 const apiRequest = async (endpoint: string, options: RequestInit = {}) => {
   const token = getToken();
+  console.log('DEBUG: Making API request to:', endpoint, 'with token:', token ? 'present' : 'missing');
   
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
@@ -101,12 +102,17 @@ const apiRequest = async (endpoint: string, options: RequestInit = {}) => {
     headers,
   });
   
+  console.log('DEBUG: Response status:', response.status);
+  
   if (!response.ok) {
     const errorData = await response.json().catch(() => ({}));
+    console.error('DEBUG: API request failed:', errorData);
     throw new Error(errorData.detail || `API request failed: ${response.status}`);
   }
   
-  return response.json();
+  const data = await response.json();
+  console.log('DEBUG: API response data:', data);
+  return data;
 };
 
 // Auth API
@@ -241,15 +247,62 @@ export const uploadFiles = async (files: File[]): Promise<any> => {
 // New function to get uploaded files (not normalized yet)
 export const getUploadedFiles = async (): Promise<any[]> => {
   try {
-    return await apiRequest('/audio/uploads');
+    console.log('DEBUG: Fetching uploaded files...');
+    const response = await apiRequest('/audio/files/original');
+    console.log('DEBUG: Original files response:', response);
+    
+    const originalFiles = response.original_files || [];
+    console.log('DEBUG: Found original files:', originalFiles.length);
+    
+    // Transform backend format to frontend format
+    return originalFiles.map((file: any) => ({
+      id: file.id,
+      name: file.filename, // Use the clean filename from backend
+      filename: file.filename,
+      original_filename: file.original_filename,
+      user_id: file.user_id,
+      user_name: file.user_name,
+      uploaded_at: file.uploaded_at,
+      file_size: file.file_size,
+      duration: file.duration,
+      can_normalize: file.can_normalize,
+      status: 'uploaded',
+      created_at: file.uploaded_at
+    }));
   } catch (error) {
     console.error('Get uploaded files error:', error);
     throw error;
   }
 };
+
 export const getNormalizedFiles = async (): Promise<AudioFile[]> => {
     try {
-        return await apiRequest('/audio/normalized-files');
+        const response = await apiRequest('/audio/files/normalized');
+        const normalizedFiles = response.normalized_files || [];
+        
+        // Transform backend format to frontend format
+        return normalizedFiles.map((file: any) => ({
+            id: file.id,
+            name: file.filename, // Use the clean filename from backend
+            filename: file.filename,
+            original_filename: file.original_filename,
+            normalized_filename: file.normalized_filename,
+            user_id: file.user_id,
+            user_name: file.user_name,
+            uploaded_at: file.uploaded_at,
+            normalized_at: file.normalized_at,
+            file_size: file.file_size,
+            duration: file.duration,
+            download_count: file.download_count,
+            last_downloaded: file.last_downloaded,
+            original_lufs: file.original_lufs,
+            target_lufs: file.target_lufs,
+            final_lufs: file.final_lufs,
+            normalization_method: file.normalization_method,
+            ready_to_download: file.ready_to_download,
+            status: 'normalized',
+            created_at: file.normalized_at
+        }));
     } catch (error) {
         console.error('Error fetching normalized files:', error);
         throw error;

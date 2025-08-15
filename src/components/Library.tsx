@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { PlayIcon, PauseIcon, MagnifyingGlassIcon, InformationCircleIcon, MusicalNoteIcon } from '@heroicons/react/24/outline';
-import { getFileUrl, exportFile, getAudioStatus, getUploadedFiles, normalizeUploadedFile, getNormalizedFiles } from '../services/api';
+import { getFileUrl, getAudioStatus, getUploadedFiles, normalizeUploadedFile, getNormalizedFiles } from '../services/api';
+import { getToken } from '../services/auth';
 
 interface AudioFile {
     id: string;
@@ -157,33 +158,42 @@ const Library: React.FC = () => {
     const handleExport = async (fileId: string) => {
         setExporting(prev => ({ ...prev, [fileId]: true }));
         try {
-            const blob = await exportFile(fileId);
-            const file = currentFiles.find(f => f.id === fileId);
+            // Create hidden iframe for seamless download without page navigation
+            const token = getToken();
+            const downloadUrl = `${process.env.REACT_APP_API_URL || 'http://localhost:8000'}/audio/export/${fileId}`;
             
-            // Get the base filename without extension
-            let baseName = file?.name || `export-${fileId}`;
-            const lastDotIndex = baseName.lastIndexOf('.');
-            const extension = lastDotIndex > 0 ? baseName.substring(lastDotIndex) : '.mp3';
-            baseName = lastDotIndex > 0 ? baseName.substring(0, lastDotIndex) : baseName;
-            
-            // Add target LUFS to filename for normalized files
-            let fileName = baseName;
-            if (activeTab === 'normalized' && file?.target_lufs) {
-                fileName = `${baseName} (${file.target_lufs} LUFS)${extension}`;
+            if (token) {
+                // Use hidden iframe to avoid page flash
+                const urlWithToken = `${downloadUrl}?token=${encodeURIComponent(token)}`;
+                
+                // Create a hidden iframe for the download
+                const iframe = document.createElement('iframe');
+                iframe.style.display = 'none';
+                iframe.src = urlWithToken;
+                
+                // Add to DOM, wait a moment, then remove
+                document.body.appendChild(iframe);
+                
+                // Remove iframe after download starts (give it a few seconds)
+                setTimeout(() => {
+                    if (document.body.contains(iframe)) {
+                        document.body.removeChild(iframe);
+                    }
+                }, 5000);
             } else {
-                fileName = `${baseName}${extension}`;
+                // For non-authenticated downloads, use hidden iframe as well
+                const iframe = document.createElement('iframe');
+                iframe.style.display = 'none';
+                iframe.src = downloadUrl;
+                
+                document.body.appendChild(iframe);
+                
+                setTimeout(() => {
+                    if (document.body.contains(iframe)) {
+                        document.body.removeChild(iframe);
+                    }
+                }, 5000);
             }
-            
-            // Create download link
-            const url = window.URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.style.display = 'none';
-            a.href = url;
-            a.download = fileName;
-            document.body.appendChild(a);
-            a.click();
-            window.URL.revokeObjectURL(url);
-            document.body.removeChild(a);
         } catch (err) {
             console.error('Export failed:', err);
             setError(err instanceof Error ? err.message : 'Export failed');
