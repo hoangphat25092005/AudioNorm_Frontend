@@ -69,6 +69,18 @@ export interface AudioFile {
   duration?: string;
   db?: number;
   file_url?: string;
+  original_filename?: string;
+  normalized_filename?: string;
+  target_lufs?: number;
+  final_lufs?: number;
+  original_lufs?: number;
+  normalization_method?: string;
+  created_at?: string;
+  status?: string;
+  gridfs_id?: string;
+  original_upload_id?: string;
+  is_stored?: boolean;
+  ready_to_download?: boolean;
 }
 
 // Helper function for API requests
@@ -189,28 +201,151 @@ export const getUserFeedback = async (): Promise<FeedbackResponse[]> => {
   }
 };
 
-// Library/Audio API
+// Library/Audio API - Updated to integrate with audio normalization
 export const uploadFiles = async (files: File[]): Promise<any> => {
   try {
-    const formData = new FormData();
-    files.forEach((file, index) => {
-      formData.append(`file${index}`, file);
-    });
+    // Upload files one by one since the backend expects single file uploads
+    const results = [];
     
-    return await fetch(`${API_URL}/audio/upload`, {
+    for (const file of files) {
+      const formData = new FormData();
+      formData.append('file', file);
+      
+      const response = await fetch(`${API_URL}/audio/upload`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${getToken()}`,
+        },
+        body: formData,
+      });
+      
+      if (!response.ok) {
+        throw new Error(`Upload failed for ${file.name}`);
+      }
+      
+      const result = await response.json();
+      results.push(result);
+    }
+    
+    return {
+      status: 'success',
+      results,
+      message: `${files.length} file(s) uploaded successfully`
+    };
+  } catch (error) {
+    console.error('File upload error:', error);
+    throw error;
+  }
+};
+
+// New function to get uploaded files (not normalized yet)
+export const getUploadedFiles = async (): Promise<any[]> => {
+  try {
+    return await apiRequest('/audio/uploads');
+  } catch (error) {
+    console.error('Get uploaded files error:', error);
+    throw error;
+  }
+};
+export const getNormalizedFiles = async (): Promise<AudioFile[]> => {
+    try {
+        return await apiRequest('/audio/normalized-files');
+    } catch (error) {
+        console.error('Error fetching normalized files:', error);
+        throw error;
+    }
+};
+// New function to normalize an uploaded file by its ID
+export const normalizeUploadedFile = async (fileId: string, targetLufs: number = -23.0): Promise<any> => {
+  try {
+    const response = await fetch(`${API_URL}/audio/normalize-uploaded/${fileId}/${targetLufs}`, {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${getToken()}`,
       },
-      body: formData,
-    }).then(response => {
-      if (!response.ok) {
-        throw new Error('File upload failed');
-      }
-      return response.json();
     });
+    
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(errorData.error || 'Normalization failed');
+    }
+    
+    return await response.json();
   } catch (error) {
-    console.error('File upload error:', error);
+    console.error('File normalization error:', error);
+    throw error;
+  }
+};
+
+// New function to upload and normalize audio files
+export const uploadAndNormalizeFiles = async (files: File[], targetLufs: number = -23.0): Promise<any> => {
+  try {
+    const results = [];
+    
+    for (const file of files) {
+      const formData = new FormData();
+      formData.append('file', file);
+      
+      const response = await fetch(`${API_URL}/audio/normalize/${targetLufs}`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${getToken()}`,
+        },
+        body: formData,
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || `Normalization failed for ${file.name}`);
+      }
+      
+      const result = await response.json();
+      results.push(result);
+    }
+    
+    return {
+      status: 'success',
+      results,
+      message: `${files.length} file(s) normalized successfully`
+    };
+  } catch (error) {
+    console.error('Audio normalization error:', error);
+    throw error;
+  }
+};
+
+// Function to analyze audio files without normalization
+export const analyzeAudioFiles = async (files: File[]): Promise<any> => {
+  try {
+    const results = [];
+    
+    for (const file of files) {
+      const formData = new FormData();
+      formData.append('file', file);
+      
+      const response = await fetch(`${API_URL}/audio/analyze`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${getToken()}`,
+        },
+        body: formData,
+      });
+      
+      if (!response.ok) {
+        throw new Error(`Analysis failed for ${file.name}`);
+      }
+      
+      const result = await response.json();
+      results.push(result);
+    }
+    
+    return {
+      status: 'success',
+      results,
+      message: `${files.length} file(s) analyzed successfully`
+    };
+  } catch (error) {
+    console.error('Audio analysis error:', error);
     throw error;
   }
 };
@@ -236,7 +371,8 @@ export const exportFile = async (fileId: string): Promise<Blob> => {
     });
     
     if (!response.ok) {
-      throw new Error('File export failed');
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(errorData.error || 'File export failed');
     }
     
     return await response.blob();
@@ -260,6 +396,34 @@ export const exportAllFiles = async (): Promise<Blob> => {
     return await response.blob();
   } catch (error) {
     console.error('Bulk export error:', error);
+    throw error;
+  }
+};
+
+// Additional API functions for audio normalization features
+export const getNormalizationHistory = async (): Promise<any> => {
+  try {
+    return await apiRequest('/audio/history');
+  } catch (error) {
+    console.error('Get normalization history error:', error);
+    throw error;
+  }
+};
+
+export const getAudioDependencyStatus = async (): Promise<any> => {
+  try {
+    return await apiRequest('/audio/dependencies');
+  } catch (error) {
+    console.error('Get audio dependency status error:', error);
+    throw error;
+  }
+};
+
+export const getAudioStatus = async (): Promise<any> => {
+  try {
+    return await apiRequest('/audio/status');
+  } catch (error) {
+    console.error('Get audio status error:', error);
     throw error;
   }
 };

@@ -19,6 +19,7 @@ const Feedback: React.FC = () => {
     const [hoveredStar, setHoveredStar] = useState(0);
     const [feedbackList, setFeedbackList] = useState<FeedbackResponse[]>([]);
     const [loading, setLoading] = useState(false);
+    const [fetchingFeedback, setFetchingFeedback] = useState(true);
     const [error, setError] = useState<string | null>(null);
     
     // Response handling state
@@ -39,10 +40,16 @@ const Feedback: React.FC = () => {
     useEffect(() => {
         const fetchFeedback = async () => {
             try {
+                console.log('Fetching feedback...');
+                setFetchingFeedback(true);
                 const data = await getAllFeedback();
+                console.log('Feedback data received:', data);
                 setFeedbackList(data);
             } catch (err) {
                 console.error('Failed to fetch feedback:', err);
+                setError(err instanceof Error ? err.message : 'Failed to fetch feedback');
+            } finally {
+                setFetchingFeedback(false);
             }
         };
         
@@ -210,8 +217,13 @@ const Feedback: React.FC = () => {
             </div>
 
             {/* Existing Feedback Section */}
-            <div className="space-y-4">
-                {feedbackList.map((feedback) => (
+            {fetchingFeedback ? (
+                <div className="text-center py-12">
+                    <p className="text-gray-500 dark:text-gray-600">Loading feedback...</p>
+                </div>
+            ) : (
+                <div className="space-y-4">
+                    {feedbackList.map((feedback) => (
                     <div
                         key={feedback.id}
                         className="bg-white dark:bg-dark-sidebar border border-primary dark:border-gray-700 rounded-lg p-6"
@@ -333,13 +345,14 @@ const Feedback: React.FC = () => {
                         )}
                     </div>
                 ))}
-            </div>
 
-            {/* Empty State */}
-            {feedbackList.length === 0 && (
-                <div className="text-center py-12">
-                    <p className="text-gray-500 dark:text-gray-600">No feedback yet. Be the first to leave a review!</p>
-                </div>
+                {/* Empty State */}
+                {feedbackList.length === 0 && !fetchingFeedback && (
+                    <div className="text-center py-12">
+                        <p className="text-gray-500 dark:text-gray-600">No feedback yet. Be the first to leave a review!</p>
+                    </div>
+                )}
+            </div>
             )}
         </div>
     );

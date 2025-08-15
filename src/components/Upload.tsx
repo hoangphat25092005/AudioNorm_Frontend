@@ -1,6 +1,7 @@
 import React, { useState, useRef } from 'react';
 import { CloudArrowUpIcon } from '@heroicons/react/24/outline';
 import { uploadFiles } from '../services/api';
+
 interface FileUploadProps {
     onFilesUploaded?: (files: FileList) => void;
 }
@@ -14,6 +15,7 @@ const FileUpload: React.FC<FileUploadProps> = ({ onFilesUploaded }) => {
     const [uploading, setUploading] = useState(false);
     const [uploadError, setUploadError] = useState<string | null>(null);
     const [uploadSuccess, setUploadSuccess] = useState(false);
+    const [lastResults, setLastResults] = useState<any>(null);
 
     // Handle file upload
     const handleFileUpload = async (files: FileList) => {
@@ -22,9 +24,13 @@ const FileUpload: React.FC<FileUploadProps> = ({ onFilesUploaded }) => {
         setUploading(true);
         setUploadError(null);
         setUploadSuccess(false);
+        setLastResults(null);
         
         try {
-            await uploadFiles(Array.from(files));
+            const fileArray = Array.from(files);
+            const result = await uploadFiles(fileArray);
+            
+            setLastResults(result);
             setUploadSuccess(true);
             if (onFilesUploaded) onFilesUploaded(files);
         } catch (error) {
@@ -78,6 +84,16 @@ const FileUpload: React.FC<FileUploadProps> = ({ onFilesUploaded }) => {
             {uploadSuccess && (
                 <div className="w-full max-w-2xl mb-4 p-3 bg-green-100 border border-green-400 text-green-700 rounded">
                     Files uploaded successfully!
+                    {lastResults && lastResults.results && (
+                        <div className="mt-2 text-sm">
+                            <strong>Uploaded Files:</strong>
+                            {lastResults.results.map((result: any, index: number) => (
+                                <div key={index} className="mt-1">
+                                    {result.filename || result.original_filename}
+                                </div>
+                            ))}
+                        </div>
+                    )}
                 </div>
             )}
 
@@ -108,6 +124,11 @@ const FileUpload: React.FC<FileUploadProps> = ({ onFilesUploaded }) => {
                 <h2 className="text-xl font-medium text-gray-900 dark:text-white mb-4">
                     {uploading ? 'Uploading files...' : 'Drop files or click choose files'}
                 </h2>
+
+                {/* Description */}
+                <p className="text-sm text-gray-600 dark:text-gray-400 mb-4 text-center">
+                    Upload audio files to your library
+                </p>
 
                 {/* Choose Files Button */}
                 <button 
@@ -142,10 +163,16 @@ const FileUpload: React.FC<FileUploadProps> = ({ onFilesUploaded }) => {
                         <span className="font-medium">- Step 1:</span> Drag files with audio into this window or choose files on your PC to upload here.
                     </p>
                     <p>
-                        <span className="font-medium">- Step 2:</span> Go into library to view uploaded files and use preview to hear those before exporting.
+                        <span className="font-medium">- Step 2:</span> Go to the Library to view your uploaded files.
                     </p>
                     <p>
-                        <span className="font-medium">- Step 3:</span> Press export in library and you can download the files back to your PC.
+                        <span className="font-medium">- Step 3:</span> In the Library, you can normalize audio files to different LUFS levels.
+                    </p>
+                    <p>
+                        <span className="font-medium">- Step 4:</span> Use preview to hear the normalized audio before exporting.
+                    </p>
+                    <p>
+                        <span className="font-medium">- Step 5:</span> Press export to download the files back to your PC.
                     </p>
                 </div>
             </div>
