@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { FcGoogle } from 'react-icons/fc';
 import { loginUser, getGoogleAuthUrl } from '../services/api';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 
 interface LoginProps {
@@ -10,6 +11,7 @@ interface LoginProps {
 
 const Login: React.FC<LoginProps> = ({ onRegisterClick, onLoginSuccess }) => {
     const { login } = useAuth();
+    const navigate = useNavigate();
     const [formData, setFormData] = useState({
         username: '',
         password: ''
@@ -46,7 +48,7 @@ const Login: React.FC<LoginProps> = ({ onRegisterClick, onLoginSuccess }) => {
     };
 
     const handleForgotPassword = () => {
-        console.log('Forgot password clicked');
+        navigate('/forgot-password');
     };
 
     return (

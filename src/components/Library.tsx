@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { PlayIcon, PauseIcon, MagnifyingGlassIcon, InformationCircleIcon, MusicalNoteIcon } from '@heroicons/react/24/outline';
-import { getFileUrl, getAudioStatus, getUploadedFiles, normalizeUploadedFile, getNormalizedFiles } from '../services/api';
+import { getAudioStatus, getUploadedFiles, normalizeUploadedFile, getNormalizedFiles } from '../services/api';
 import { getToken } from '../services/auth';
 
 interface AudioFile {
@@ -33,8 +33,6 @@ type TabType = 'original' | 'normalized';
 const Library: React.FC = () => {
     const [activeTab, setActiveTab] = useState<TabType>('original');
     const [searchTerm, setSearchTerm] = useState('');
-    const [currentlyPlaying, setCurrentlyPlaying] = useState<string | null>(null);
-    const [playbackTime, setPlaybackTime] = useState<{ [key: string]: number }>({});
     const [hoveredFile, setHoveredFile] = useState<string | null>(null);
     const [originalFiles, setOriginalFiles] = useState<AudioFile[]>([]);
     const [normalizedFiles, setNormalizedFiles] = useState<AudioFile[]>([]);
@@ -47,8 +45,11 @@ const Library: React.FC = () => {
     const [normalizationTarget, setNormalizationTarget] = useState<{ [key: string]: number }>({});
     const [successNotification, setSuccessNotification] = useState<string | null>(null);
     
-    // Audio element ref for playback
-    const audioRef = React.useRef<HTMLAudioElement | null>(null);
+    // Audio playback state
+    const [currentlyPlaying, setCurrentlyPlaying] = useState<string | null>(null);
+    const [currentTime, setCurrentTime] = useState<{ [key: string]: number }>({});
+    const [duration, setDuration] = useState<{ [key: string]: number }>({});
+    const [audioElements, setAudioElements] = useState<{ [key: string]: HTMLAudioElement }>({});
     
     // Fetch data on component mount
     useEffect(() => {
@@ -85,43 +86,93 @@ const Library: React.FC = () => {
     );
 
     const handlePlay = (fileId: string) => {
-        if (!audioRef.current) {
-            audioRef.current = new Audio();
+        const token = getToken();
+        if (!token) {
+            setError('Authentication required for audio playback');
+            return;
         }
-        
+
+        // Stop currently playing audio if any
+        if (currentlyPlaying && currentlyPlaying !== fileId) {
+            const currentAudio = audioElements[currentlyPlaying];
+            if (currentAudio) {
+                currentAudio.pause();
+                currentAudio.currentTime = 0;
+            }
+        }
+
+        // Toggle playback for the same file
         if (currentlyPlaying === fileId) {
-            // Pause current playback
-            audioRef.current.pause();
-            setCurrentlyPlaying(null);
-        } else {
-            // Start new playback
-            if (currentlyPlaying) {
-                audioRef.current.pause();
+            const audio = audioElements[fileId];
+            if (audio) {
+                audio.pause();
+                setCurrentlyPlaying(null);
             }
-            
-            // Use different URL for uploaded vs normalized files
-            const file = currentFiles.find(f => f.id === fileId);
-            if (file) {
-                audioRef.current.src = file.file_url || getFileUrl(fileId);
-                audioRef.current.play().catch(err => console.error('Playback error:', err));
-                setCurrentlyPlaying(fileId);
-                
-                // Track playback time
-                audioRef.current.ontimeupdate = () => {
-                    if (audioRef.current) {
-                        setPlaybackTime(prev => ({
-                            ...prev,
-                            [fileId]: Math.floor(audioRef.current!.currentTime)
-                        }));
-                    }
-                };
-                
-                // Handle playback end
-                audioRef.current.onended = () => {
-                    setCurrentlyPlaying(null);
-                };
-            }
+            return;
         }
+
+        // Create new audio element if doesn't exist
+        if (!audioElements[fileId]) {
+            const audio = new Audio();
+            
+            // Determine the streaming URL based on file type
+            const isNormalized = activeTab === 'normalized';
+            const streamUrl = isNormalized 
+                ? `http://localhost:8000/audio/stream/${fileId}?token=${encodeURIComponent(token)}`
+                : `http://localhost:8000/audio/stream-upload/${fileId}?token=${encodeURIComponent(token)}`;
+            
+            audio.src = streamUrl;
+            audio.preload = 'metadata';
+
+            // Set up event listeners
+            audio.addEventListener('loadedmetadata', () => {
+                setDuration(prev => ({ ...prev, [fileId]: audio.duration }));
+            });
+
+            audio.addEventListener('timeupdate', () => {
+                setCurrentTime(prev => ({ ...prev, [fileId]: audio.currentTime }));
+            });
+
+            audio.addEventListener('ended', () => {
+                setCurrentlyPlaying(null);
+                setCurrentTime(prev => ({ ...prev, [fileId]: 0 }));
+            });
+
+            audio.addEventListener('error', (e) => {
+                console.error('Audio playback error:', e);
+                setError('Failed to load audio file');
+                setCurrentlyPlaying(null);
+            });
+
+            // Store the audio element
+            setAudioElements(prev => ({ ...prev, [fileId]: audio }));
+        }
+
+        // Start playback
+        const audio = audioElements[fileId] || audioElements[fileId];
+        if (audio) {
+            audio.play().catch(err => {
+                console.error('Playback error:', err);
+                setError('Failed to play audio file');
+            });
+            setCurrentlyPlaying(fileId);
+        }
+    };
+
+    const handleSeek = (fileId: string, newTime: number) => {
+        const audio = audioElements[fileId];
+        if (audio) {
+            audio.currentTime = newTime;
+            setCurrentTime(prev => ({ ...prev, [fileId]: newTime }));
+        }
+    };
+
+    const formatTime = (seconds: number): string => {
+        if (isNaN(seconds) || seconds === 0) return '0:00';
+        
+        const minutes = Math.floor(seconds / 60);
+        const remainingSeconds = Math.floor(seconds % 60);
+        return `${minutes}:${remainingSeconds.toString().padStart(2, '0')}`;
     };
 
     const handleNormalize = async (fileId: string) => {
@@ -205,12 +256,6 @@ const Library: React.FC = () => {
     const handleSort = () => {
         console.log('Sorting files');
         // Implement sorting logic here
-    };
-
-    const formatTime = (seconds: number) => {
-        const mins = Math.floor(seconds / 60);
-        const secs = seconds % 60;
-        return `${mins}:${secs.toString().padStart(2, '0')}`;
     };
 
     return (
@@ -400,13 +445,6 @@ const Library: React.FC = () => {
                                             {file.original_filename && file.original_filename !== file.name && (
                                                 <span className="text-sm text-gray-500"> (from {file.original_filename})</span>
                                             )}
-                                            <span className={`ml-2 px-2 py-1 text-xs rounded ${
-                                                isNormalized
-                                                    ? 'bg-green-100 text-green-800' 
-                                                    : 'bg-blue-100 text-blue-800'
-                                            }`}>
-                                                {isNormalized ? 'Normalized' : 'Original'}
-                                            </span>
                                             {/* User ownership indicator - show username instead of ID */}
                                             {file.user_name && (
                                                 <span className="ml-2 px-2 py-1 text-xs bg-gray-100 text-gray-600 rounded">
@@ -549,6 +587,7 @@ const Library: React.FC = () => {
                                             className={`p-2 bg-transparent border-none transition-colors ${
                                                 isHovered ? 'text-primary hover:text-primary' : 'text-black hover:text-gray-100'
                                             }`}
+                                            title={currentlyPlaying === file.id ? 'Pause' : 'Play'}
                                         >
                                             {currentlyPlaying === file.id ? (
                                                 <PauseIcon className="w-4 h-4" />
@@ -557,22 +596,37 @@ const Library: React.FC = () => {
                                             )}
                                         </button>
                                         
-                                        {/* Progress Bar */}
-                                        <div className="w-24 h-1 bg-black border border-primary rounded">
+                                        {/* Interactive Progress Bar */}
+                                        <div className="w-24 h-3 bg-black border border-primary rounded relative cursor-pointer">
+                                            <input
+                                                type="range"
+                                                min="0"
+                                                max={duration[file.id] || 0}
+                                                value={currentTime[file.id] || 0}
+                                                onChange={(e) => handleSeek(file.id, parseFloat(e.target.value))}
+                                                className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                                                disabled={!audioElements[file.id]}
+                                            />
                                             <div 
                                                 className={`h-full rounded transition-colors ${
                                                     isHovered ? 'bg-primary' : 'bg-gray-400'
                                                 }`}
                                                 style={{ 
-                                                    width: currentlyPlaying === file.id ? '30%' : '0%' 
+                                                    width: duration[file.id] > 0 
+                                                        ? `${((currentTime[file.id] || 0) / duration[file.id]) * 100}%` 
+                                                        : '0%' 
                                                 }}
                                             />
                                         </div>
                                         
-                                        <span className={`text-xs w-8 transition-colors ${
+                                        {/* Time Display */}
+                                        <span className={`text-xs w-12 transition-colors ${
                                             isHovered ? 'text-primary' : 'text-black'
                                         }`}>
-                                            {formatTime(playbackTime[file.id] || 0)}
+                                            {duration[file.id] > 0 
+                                                ? `${formatTime(currentTime[file.id] || 0)}/${formatTime(duration[file.id])}`
+                                                : '--:--'
+                                            }
                                         </span>
                                     </div>
 

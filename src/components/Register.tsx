@@ -13,6 +13,7 @@ const Register: React.FC<RegisterProps> = ({ onLoginClick }) => {
     });
     const [error, setError] = useState<string | null>(null);
     const [loading, setLoading] = useState(false);
+    const [success, setSuccess] = useState<string | null>(null);
 
     const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const { name, value } = e.target;
@@ -25,12 +26,11 @@ const Register: React.FC<RegisterProps> = ({ onLoginClick }) => {
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         setError(null);
-        
+        setSuccess(null);
         if (formData.password !== formData.confirmPassword) {
             setError("Passwords don't match");
             return;
         }
-        
         setLoading(true);
         try {
             await registerUser({
@@ -39,8 +39,7 @@ const Register: React.FC<RegisterProps> = ({ onLoginClick }) => {
                 password: formData.password,
                 confirm_password: formData.confirmPassword
             });
-            // On successful registration, redirect to login
-            onLoginClick();
+            setSuccess('Registration successful! Please check your email to verify your account.');
         } catch (error) {
             setError(error instanceof Error ? error.message : 'Registration failed');
         } finally {
@@ -54,6 +53,11 @@ const Register: React.FC<RegisterProps> = ({ onLoginClick }) => {
             {error && (
                 <div className="mb-4 p-3 bg-red-100 border border-red-400 text-red-700 rounded">
                     {error}
+                </div>
+            )}
+            {success && (
+                <div className="mb-4 p-3 bg-green-100 border border-green-400 text-green-700 rounded">
+                    {success}
                 </div>
             )}
             <form onSubmit={handleSubmit}>
@@ -123,7 +127,7 @@ const Register: React.FC<RegisterProps> = ({ onLoginClick }) => {
 
                 <button 
                 type="submit" 
-                disabled={loading}
+                disabled={loading || !!success}
                 className="w-full p-3 bg-primary text-white border-none rounded font-medium cursor-pointer transition-colors mt-4 hover:bg-primary-hover disabled:opacity-50"
                 >
                 {loading ? 'Registering...' : 'Register'}
@@ -135,6 +139,7 @@ const Register: React.FC<RegisterProps> = ({ onLoginClick }) => {
                 <button 
                     onClick={onLoginClick} 
                     className="bg-transparent border-none text-primary cursor-pointer underline hover:text-primary-hover transition-colors"
+                    disabled={!!success}
                 >
                     Log In
                 </button>
