@@ -18,10 +18,10 @@ const AudioPlayer: React.FC<AudioPlayerProps> = ({ fileId, filename, isNormalize
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // Determine the streaming URL based on file type
-  const streamUrl = isNormalized 
-    ? `http://localhost:8000/audio/stream/${fileId}?token=${token}`
-    : `http://localhost:8000/audio/stream-upload/${fileId}?token=${token}`;
+  // Determine the preview URL based on file type (new API)
+  const streamUrl = isNormalized
+    ? `http://localhost:8000/audio/preview/${fileId}?token=${token}`
+    : `http://localhost:8000/audio/preview/original/${fileId}?token=${token}`;
 
   useEffect(() => {
     const audio = audioRef.current;

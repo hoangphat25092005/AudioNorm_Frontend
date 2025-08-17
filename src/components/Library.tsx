@@ -115,12 +115,13 @@ const Library: React.FC = () => {
         if (!audioElements[fileId]) {
             const audio = new Audio();
             
-            // Determine the streaming URL based on file type
+
+            // Determine the preview URL based on file type (new API)
             const isNormalized = activeTab === 'normalized';
-            const streamUrl = isNormalized 
-                ? `http://localhost:8000/audio/stream/${fileId}?token=${encodeURIComponent(token)}`
-                : `http://localhost:8000/audio/stream-upload/${fileId}?token=${encodeURIComponent(token)}`;
-            
+            const streamUrl = isNormalized
+                ? `http://localhost:8000/audio/preview/${fileId}?token=${encodeURIComponent(token)}`
+                : `http://localhost:8000/audio/preview/original/${fileId}?token=${encodeURIComponent(token)}`;
+
             audio.src = streamUrl;
             audio.preload = 'metadata';
 

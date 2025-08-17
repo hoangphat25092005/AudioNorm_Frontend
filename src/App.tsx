@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { ThemeProvider } from './contexts/ThemeContext';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import Layout from './components/Layout';
@@ -16,9 +16,25 @@ import ResetPassword from './components/ResetPassword';
 
 // Create a separate component that uses the useAuth hook
 
+
+import { useNavigate } from 'react-router-dom';
+
 const AppContent: React.FC = () => {
   const { isLoggedIn, loading } = useAuth();
   const [currentView, setCurrentView] = useState<'home' | 'upload' | 'library' | 'feedback' | 'login' | 'register'>('upload');
+  const navigate = useNavigate();
+
+  // Handle Google OAuth redirect with token
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const token = params.get('token');
+    if (token) {
+      localStorage.setItem('access_token', token);
+      window.history.replaceState({}, document.title, window.location.pathname);
+      // Optionally set login state or trigger user fetch here
+      navigate('/');
+    }
+  }, [navigate]);
 
   const handleLoginClick = () => {
     setCurrentView('login');
