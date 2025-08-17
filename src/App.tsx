@@ -29,7 +29,7 @@ const AppContent: React.FC = () => {
     const params = new URLSearchParams(window.location.search);
     const token = params.get('token');
     if (token) {
-      localStorage.setItem('access_token', token);
+      localStorage.setItem('audionorm_token', token);
       window.history.replaceState({}, document.title, window.location.pathname);
       // Optionally set login state or trigger user fetch here
       navigate('/');
@@ -77,7 +77,7 @@ const AppContent: React.FC = () => {
         element={
           <Layout>
             <div className="flex flex-col min-h-screen">
-              <div className="w-full bg-white dark:bg-dark-sidebar border-b border-gray-200 dark:border-gray-700 px-6 py-4 flex justify-between items-center">
+              <div className="flex items-center justify-between w-full px-6 py-4 bg-white border-b border-gray-200 dark:bg-dark-sidebar dark:border-gray-700">
                 <h1 className="text-2xl font-semibold text-primary">
                   Audio<span className="text-gray-900 dark:text-white">Norm</span>
                 </h1>
@@ -85,7 +85,7 @@ const AppContent: React.FC = () => {
               </div>
               <div className="flex flex-1">
                 {isLoggedIn && (
-                  <div className="w-52 min-h-full bg-white dark:bg-dark-sidebar border-r border-gray-200 dark:border-gray-700 flex flex-col">
+                  <div className="flex flex-col min-h-full bg-white border-r border-gray-200 w-52 dark:bg-dark-sidebar dark:border-gray-700">
                     <nav className="flex-1 pb-4">
                       {navItems.map((item, index) => {
                         const IconComponent = item.icon;
