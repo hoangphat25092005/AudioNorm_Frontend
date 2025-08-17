@@ -113,48 +113,71 @@ const Library: React.FC = () => {
 
         // Create new audio element if doesn't exist
         if (!audioElements[fileId]) {
-            const audio = new Audio();
-            
-
-            // Determine the preview URL based on file type (new API)
+            // Fetch the audio preview as a blob and check content type
             const isNormalized = activeTab === 'normalized';
             const streamUrl = isNormalized
-                ? `http://localhost:8000/audio/preview/${fileId}?token=${encodeURIComponent(token)}`
-                : `http://localhost:8000/audio/preview/original/${fileId}?token=${encodeURIComponent(token)}`;
+                ? `http://localhost:8000/audio/preview/${fileId}`
+                : `http://localhost:8000/audio/preview/original/${fileId}`;
 
-            audio.src = streamUrl;
-            audio.preload = 'metadata';
-
-            // Set up event listeners
-            audio.addEventListener('loadedmetadata', () => {
-                setDuration(prev => ({ ...prev, [fileId]: audio.duration }));
-            });
-
-            audio.addEventListener('timeupdate', () => {
-                setCurrentTime(prev => ({ ...prev, [fileId]: audio.currentTime }));
-            });
-
-            audio.addEventListener('ended', () => {
-                setCurrentlyPlaying(null);
-                setCurrentTime(prev => ({ ...prev, [fileId]: 0 }));
-            });
-
-            audio.addEventListener('error', (e) => {
-                console.error('Audio playback error:', e);
-                setError('Failed to load audio file');
-                setCurrentlyPlaying(null);
-            });
-
-            // Store the audio element
-            setAudioElements(prev => ({ ...prev, [fileId]: audio }));
+            fetch(streamUrl, {
+                headers: {
+                    'Authorization': `Bearer ${token}`
+                }
+            })
+                .then(async (res) => {
+                    const contentType = res.headers.get('Content-Type');
+                    if (!contentType || !contentType.startsWith('audio/')) {
+                        // Try to parse error message from backend
+                        let errMsg = 'Failed to load audio preview.';
+                        if (res.status === 404) {
+                            errMsg = 'Audio file not found or not available for preview.';
+                        } else {
+                            try {
+                                const data = await res.json();
+                                errMsg = data.error || data.detail || errMsg;
+                            } catch (e) {}
+                        }
+                        setError(errMsg);
+                        setCurrentlyPlaying(null);
+                        return;
+                    }
+                    const blob = await res.blob();
+                    const audioUrl = URL.createObjectURL(blob);
+                    const audio = new Audio(audioUrl);
+                    audio.preload = 'metadata';
+                    audio.addEventListener('loadedmetadata', () => {
+                        setDuration(prev => ({ ...prev, [fileId]: audio.duration }));
+                    });
+                    audio.addEventListener('timeupdate', () => {
+                        setCurrentTime(prev => ({ ...prev, [fileId]: audio.currentTime }));
+                    });
+                    audio.addEventListener('ended', () => {
+                        setCurrentlyPlaying(null);
+                        setCurrentTime(prev => ({ ...prev, [fileId]: 0 }));
+                    });
+                    audio.addEventListener('error', (e) => {
+                        setError('Audio playback error.');
+                        setCurrentlyPlaying(null);
+                    });
+                    setAudioElements(prev => ({ ...prev, [fileId]: audio }));
+                    // Start playback
+                    audio.play().catch(err => {
+                        setError('Failed to play audio file.');
+                    });
+                    setCurrentlyPlaying(fileId);
+                })
+                .catch((err) => {
+                    setError('Failed to fetch audio preview.');
+                    setCurrentlyPlaying(null);
+                });
+            return;
         }
 
-        // Start playback
-        const audio = audioElements[fileId] || audioElements[fileId];
+        // Start playback for existing audio element
+        const audio = audioElements[fileId];
         if (audio) {
             audio.play().catch(err => {
-                console.error('Playback error:', err);
-                setError('Failed to play audio file');
+                setError('Failed to play audio file.');
             });
             setCurrentlyPlaying(fileId);
         }
@@ -297,7 +320,7 @@ const Library: React.FC = () => {
             
             {/* Audio Status Info */}
             {audioStatus && (
-                <div className="bg-blue-50 dark:bg-blue-900 border-b border-blue-200 dark:border-blue-700 px-6 py-2">
+                <div className="px-6 py-2 border-b border-blue-200 bg-blue-50 dark:bg-blue-900 dark:border-blue-700">
                     <div className="text-sm text-blue-800 dark:text-blue-200">
                         Audio Service: {audioStatus.status === 'working' ? '✅ Active' : '❌ Inactive'}
                         {audioStatus.message && ` - ${audioStatus.message}`}
@@ -307,7 +330,7 @@ const Library: React.FC = () => {
 
             {/* Error Display */}
             {error && (
-                <div className="p-4 bg-red-100 border border-red-400 text-red-700 mb-4">
+                <div className="p-4 mb-4 text-red-700 bg-red-100 border border-red-400">
                     {error}
                     <button 
                         onClick={() => setError(null)}
@@ -320,14 +343,14 @@ const Library: React.FC = () => {
 
             {/* Loading Display */}
             {loading && (
-                <div className="p-4 bg-blue-100 border border-blue-400 text-blue-700 mb-4">
+                <div className="p-4 mb-4 text-blue-700 bg-blue-100 border border-blue-400">
                     Loading audio files...
                 </div>
             )}
 
             {/* Success Notification */}
             {successNotification && (
-                <div className="fixed top-4 right-4 bg-green-500 text-white px-6 py-3 rounded-lg shadow-lg z-50 flex items-center">
+                <div className="fixed z-50 flex items-center px-6 py-3 text-white bg-green-500 rounded-lg shadow-lg top-4 right-4">
                     <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                     </svg>
@@ -342,7 +365,7 @@ const Library: React.FC = () => {
             )}
 
             {/* Header */}
-            <div className="bg-white dark:bg-dark-sidebar border-b border-gray-200 dark:border-gray-700 px-6 py-4">
+            <div className="px-6 py-4 bg-white border-b border-gray-200 dark:bg-dark-sidebar dark:border-gray-700">
                 <div className="flex items-center justify-between">
                     <div className="flex items-center gap-3">
                         <MusicalNoteIcon className="w-6 h-6 text-primary" />
@@ -353,7 +376,7 @@ const Library: React.FC = () => {
                 </div>
                 
                 {/* Tab Navigation */}
-                <div className="mt-4 flex space-x-1 bg-gray-100 dark:bg-gray-800 p-1 rounded-lg">
+                <div className="flex p-1 mt-4 space-x-1 bg-gray-100 rounded-lg dark:bg-gray-800">
                     <button
                         onClick={() => setActiveTab('original')}
                         className={`flex-1 px-4 py-2 text-sm font-medium rounded-md transition-colors ${
@@ -384,24 +407,24 @@ const Library: React.FC = () => {
             </div>
 
             {/* Header Controls Bar */}
-            <div className="bg-white dark:bg-dark-sidebar border-b border-gray-200 dark:border-gray-700 px-6 py-4 flex items-center justify-between">
+            <div className="flex items-center justify-between px-6 py-4 bg-white border-b border-gray-200 dark:bg-dark-sidebar dark:border-gray-700">
                 <div className="flex items-center gap-4">
                     {/* Search Input */}
                     <div className="relative">
-                        <MagnifyingGlassIcon className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
+                        <MagnifyingGlassIcon className="absolute w-4 h-4 text-gray-400 transform -translate-y-1/2 left-3 top-1/2" />
                         <input
                             type="text"
                             placeholder={`Search ${activeTab} files...`}
                             value={searchTerm}
                             onChange={(e) => setSearchTerm(e.target.value)}
-                            className="pl-10 pr-4 py-2 w-80 bg-white border-primary dark:bg-black border dark:border-gray-600 rounded text-white placeholder-gray-400 focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary/20"
+                            className="py-2 pl-10 pr-4 text-white placeholder-gray-400 bg-white border rounded w-80 border-primary dark:bg-black dark:border-gray-600 focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary/20"
                         />
                     </div>
 
                     {/* Sort Button */}
                     <button
                         onClick={handleSort}
-                        className="px-4 py-2 bg-white border-primary dark:bg-black dark:text-white border dark:border-gray-600 rounded hover:bg-gray-800 transition-colors"
+                        className="px-4 py-2 transition-colors bg-white border rounded border-primary dark:bg-black dark:text-white dark:border-gray-600 hover:bg-gray-800"
                     >
                         Sort
                     </button>
@@ -429,10 +452,10 @@ const Library: React.FC = () => {
                             <div
                                 onMouseEnter={() => setHoveredFile(file.id)}
                                 onMouseLeave={() => setHoveredFile(null)}
-                                className="flex items-center justify-between p-4 bg-white dark:bg-dark-sidebar border border-primary dark:border-gray-700 rounded transition-colors hover:bg-gray-300 dark:hover:bg-gray-800"
+                                className="flex items-center justify-between p-4 transition-colors bg-white border rounded dark:bg-dark-sidebar border-primary dark:border-gray-700 hover:bg-gray-300 dark:hover:bg-gray-800"
                             >
                                 {/* File Info - Enhanced */}
-                                <div className="flex items-center gap-4 flex-1">
+                                <div className="flex items-center flex-1 gap-4">
                                     <span className={`w-4 transition-colors ${
                                         isHovered ? 'text-primary' : 'text-black dark:text-gray-200'
                                     }`}>
@@ -448,7 +471,7 @@ const Library: React.FC = () => {
                                             )}
                                             {/* User ownership indicator - show username instead of ID */}
                                             {file.user_name && (
-                                                <span className="ml-2 px-2 py-1 text-xs bg-gray-100 text-gray-600 rounded">
+                                                <span className="px-2 py-1 ml-2 text-xs text-gray-600 bg-gray-100 rounded">
                                                     Owner: {file.user_name}
                                                 </span>
                                             )}
@@ -489,23 +512,23 @@ const Library: React.FC = () => {
                                         {isNormalized ? (
                                             // Show LUFS info for normalized files
                                             <div className="flex flex-col items-center gap-1">
-                                                <span className="text-xs text-green-600 dark:text-green-400 text-center font-medium">
+                                                <span className="text-xs font-medium text-center text-green-600 dark:text-green-400">
                                                     Normalized
                                                 </span>
-                                                <span className="text-xs text-gray-600 dark:text-gray-400 text-center">
+                                                <span className="text-xs text-center text-gray-600 dark:text-gray-400">
                                                     Target: {file.target_lufs || 'N/A'} LUFS
                                                 </span>
-                                                <span className="text-xs text-gray-600 dark:text-gray-400 text-center">
+                                                <span className="text-xs text-center text-gray-600 dark:text-gray-400">
                                                     Final: {file.final_lufs?.toFixed(1) || 'N/A'} LUFS
                                                 </span>
                                             </div>
                                         ) : (
                                             // Show normalization controls for original files
-                                            <div className="flex flex-col items-center gap-1 w-full">
-                                                <span className="text-xs text-black dark:text-gray-400 text-center">
+                                            <div className="flex flex-col items-center w-full gap-1">
+                                                <span className="text-xs text-center text-black dark:text-gray-400">
                                                     Target: {normalizationTarget[file.id] || -23} LUFS
                                                 </span>
-                                                <span className="text-xs text-gray-500 dark:text-gray-400 text-center w-full h-4 flex items-center justify-center">
+                                                <span className="flex items-center justify-center w-full h-4 text-xs text-center text-gray-500 dark:text-gray-400">
                                                     {(() => {
                                                         const target = normalizationTarget[file.id] || -23;
                                                         if (target >= -12) return "Loud (Streaming)";
@@ -535,7 +558,7 @@ const Library: React.FC = () => {
                                                     <span>-6</span>
                                                 </div>
                                                 {/* Quick preset buttons */}
-                                                <div className="flex gap-1 mt-1 justify-center w-full">
+                                                <div className="flex justify-center w-full gap-1 mt-1">
                                                     {[
                                                         { value: -14, label: "-14", title: "Spotify/Apple Music" },
                                                         { value: -16, label: "-16", title: "YouTube Music" },
@@ -598,7 +621,7 @@ const Library: React.FC = () => {
                                         </button>
                                         
                                         {/* Interactive Progress Bar */}
-                                        <div className="w-24 h-3 bg-black border border-primary rounded relative cursor-pointer">
+                                        <div className="relative w-24 h-3 bg-black border rounded cursor-pointer border-primary">
                                             <input
                                                 type="range"
                                                 min="0"
@@ -655,8 +678,8 @@ const Library: React.FC = () => {
                             
                             {/* Expandable Details Section */}
                             {showDetails === file.id && (
-                                <div className="px-4 pb-4 bg-gray-50 dark:bg-gray-800 border-t border-gray-200 dark:border-gray-600">
-                                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+                                <div className="px-4 pb-4 border-t border-gray-200 bg-gray-50 dark:bg-gray-800 dark:border-gray-600">
+                                    <div className="grid grid-cols-2 gap-4 text-sm md:grid-cols-4">
                                         {file.original_lufs !== undefined && (
                                             <div>
                                                 <span className="font-medium text-gray-600 dark:text-gray-400">Original LUFS:</span>
@@ -688,7 +711,7 @@ const Library: React.FC = () => {
                                         {file.gridfs_id && (
                                             <div>
                                                 <span className="font-medium text-gray-600 dark:text-gray-400">Storage ID:</span>
-                                                <div className="text-gray-900 dark:text-gray-100 font-mono text-xs">
+                                                <div className="font-mono text-xs text-gray-900 dark:text-gray-100">
                                                     {file.gridfs_id.substring(0, 12)}...
                                                 </div>
                                             </div>
@@ -710,7 +733,7 @@ const Library: React.FC = () => {
 
                 {/* Empty State */}
                 {filteredFiles.length === 0 && (
-                    <div className="text-center py-12">
+                    <div className="py-12 text-center">
                         <p className="text-gray-500 dark:text-gray-400">
                             {searchTerm 
                                 ? `No ${activeTab} files match your search.`
