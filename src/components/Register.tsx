@@ -15,6 +15,17 @@ const Register: React.FC<RegisterProps> = ({ onLoginClick }) => {
     const [loading, setLoading] = useState(false);
     const [success, setSuccess] = useState<string | null>(null);
 
+    const allowedDomains = [
+        'gmail.com', 'googlemail.com', 'outlook.com', 'hotmail.com', 'live.com',
+        'yahoo.com', 'icloud.com', 'protonmail.com', 'zoho.com', 'aol.com',
+        'yandex.com', 'mail.com', 'gmx.com'
+    ];
+
+    function isAllowedEmail(email: string) {
+        const domain = email.split('@')[1]?.toLowerCase();
+        return allowedDomains.includes(domain);
+    }
+
     const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const { name, value } = e.target;
         setFormData(prev => ({
@@ -22,13 +33,16 @@ const Register: React.FC<RegisterProps> = ({ onLoginClick }) => {
             [name]: value
         }));
     };
-
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         setError(null);
         setSuccess(null);
         if (formData.password !== formData.confirmPassword) {
             setError("Passwords don't match");
+            return;
+        }
+        if (!isAllowedEmail(formData.email)) {
+            setError("Please use a popular email provider (Gmail, Outlook, Yahoo, iCloud, Protonmail, Zoho, AOL, Yandex, Mail.com, GMX, etc).");
             return;
         }
         setLoading(true);
