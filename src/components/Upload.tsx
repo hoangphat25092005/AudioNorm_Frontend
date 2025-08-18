@@ -33,6 +33,7 @@ const FileUpload: React.FC<FileUploadProps> = ({ onFilesUploaded }) => {
             setLastResults(result);
             setUploadSuccess(true);
             if (onFilesUploaded) onFilesUploaded(files);
+            const MAX_FILE_SIZE_MB = 25; // Maximum file size in MB
         } catch (error) {
             setUploadError(error instanceof Error ? error.message : 'Upload failed');
         } finally {

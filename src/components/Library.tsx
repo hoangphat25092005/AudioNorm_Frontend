@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { PlayIcon, PauseIcon, MagnifyingGlassIcon, InformationCircleIcon, MusicalNoteIcon } from '@heroicons/react/24/outline';
-import { getAudioStatus, getUploadedFiles, normalizeUploadedFile, getNormalizedFiles } from '../services/api';
+import { getAudioStatus, getUploadedFiles, normalizeUploadedFile, getNormalizedFiles, deleteOriginalFile, deleteNormalizedFile } from '../services/api';
+    
 import { getToken } from '../services/auth';
 
 interface AudioFile {
@@ -84,7 +85,25 @@ const Library: React.FC = () => {
         (file.artist && file.artist.toLowerCase().includes(searchTerm.toLowerCase())) ||
         (file.genre && file.genre.toLowerCase().includes(searchTerm.toLowerCase()))
     );
-
+    const [deleting, setDeleting] = useState<{ [key: string]: boolean }>({});
+    // Delete handler for original and normalized files
+    const handleDelete = async (fileId: string, type: 'original' | 'normalized') => {
+        setDeleting((prev: { [key: string]: boolean }) => ({ ...prev, [fileId]: true }));
+        try {
+            if (type === 'original') {
+                await deleteOriginalFile(fileId);
+                setOriginalFiles((prev: AudioFile[]) => prev.filter((f: AudioFile) => f.id !== fileId));
+            } else {
+                await deleteNormalizedFile(fileId);
+                setNormalizedFiles((prev: AudioFile[]) => prev.filter((f: AudioFile) => f.id !== fileId));
+            }
+            setError(null);
+        } catch (err) {
+            setError(err instanceof Error ? err.message : 'Delete failed');
+        } finally {
+            setDeleting((prev: { [key: string]: boolean }) => ({ ...prev, [fileId]: false }));
+        }
+    };
     const handlePlay = (fileId: string) => {
         const token = getToken();
         if (!token) {
@@ -92,14 +111,13 @@ const Library: React.FC = () => {
             return;
         }
 
-        // Stop currently playing audio if any
-        if (currentlyPlaying && currentlyPlaying !== fileId) {
-            const currentAudio = audioElements[currentlyPlaying];
-            if (currentAudio) {
-                currentAudio.pause();
-                currentAudio.currentTime = 0;
+        // Pause and reset all other audio elements to ensure only one plays at a time
+        Object.entries(audioElements).forEach(([id, audio]) => {
+            if (id !== fileId) {
+                audio.pause();
+                audio.currentTime = 0;
             }
-        }
+        });
 
         // Toggle playback for the same file
         if (currentlyPlaying === fileId) {
@@ -114,13 +132,13 @@ const Library: React.FC = () => {
         // Create new audio element if doesn't exist
         if (!audioElements[fileId]) {
             const audio = new Audio();
-            
-            // Determine the streaming URL based on file type
+            // Use backend URL from env or fallback
+            const backendUrl = process.env.REACT_APP_API_URL || 'http://localhost:8000';
             const isNormalized = activeTab === 'normalized';
-            const streamUrl = isNormalized 
-                ? `http://localhost:8000/audio/stream/${fileId}?token=${encodeURIComponent(token)}`
-                : `http://localhost:8000/audio/stream-upload/${fileId}?token=${encodeURIComponent(token)}`;
-            
+            const streamUrl = isNormalized
+                ? `${backendUrl}/audio/stream/${fileId}?token=${encodeURIComponent(token)}`
+                : `${backendUrl}/audio/stream-upload/${fileId}?token=${encodeURIComponent(token)}`;
+
             audio.src = streamUrl;
             audio.preload = 'metadata';
 
@@ -176,18 +194,20 @@ const Library: React.FC = () => {
     };
 
     const handleNormalize = async (fileId: string) => {
+        // Prevent normalizing more than one file at a time
+        if (Object.values(normalizing).some((v) => v)) {
+            setError('Please wait for the current normalization to finish before starting another.');
+            return;
+        }
         const targetLufs = normalizationTarget[fileId] || -23.0;
-        
         setNormalizing(prev => ({ ...prev, [fileId]: true }));
         try {
             const result = await normalizeUploadedFile(fileId, targetLufs);
             console.log('Normalization result:', result);
-            
             // Show success notification
             const fileName = originalFiles.find(f => f.id === fileId)?.name || 'File';
             setSuccessNotification(`"${fileName}" has been normalized and is ready to download!`);
             setTimeout(() => setSuccessNotification(null), 5000); // Hide after 5 seconds
-            
             // Refresh both files lists since normalization creates a new normalized file
             const [refreshedOriginal, refreshedNormalized] = await Promise.all([
                 getUploadedFiles().catch(() => []),
@@ -195,7 +215,6 @@ const Library: React.FC = () => {
             ]);
             setOriginalFiles(refreshedOriginal);
             setNormalizedFiles(refreshedNormalized);
-            
             // Clear error and switch to normalized tab to show the result
             setError(null);
             setActiveTab('normalized');
@@ -630,23 +649,54 @@ const Library: React.FC = () => {
                                         </span>
                                     </div>
 
-                                    {/* Export Button - Show only for normalized files */}
-                                    {isNormalized && (
+                                    {/* Export & Delete Buttons */}
+                                    {isNormalized ? (
+                                        <>
+                                            <button
+                                                onClick={() => handleExport(file.id)}
+                                                disabled={exporting[file.id]}
+                                                className={`px-3 py-1 border rounded text-sm transition-colors ${
+                                                    exporting[file.id]
+                                                        ? 'bg-gray-300 text-gray-500 cursor-not-allowed border-gray-300'
+                                                        : isHovered 
+                                                            ? 'bg-primary border-primary text-white hover:bg-primary-hover' 
+                                                            : 'bg-black text-gray-200 border-gray-600 hover:bg-gray-800'
+                                                }`}
+                                            >
+                                                {exporting[file.id] 
+                                                    ? 'Exporting...' 
+                                                    : 'Export'
+                                                }
+                                            </button>
+                                            <button
+                                                onClick={() => handleDelete(file.id, 'normalized')}
+                                                disabled={deleting[file.id]}
+                                                className={`ml-2 px-3 py-1 border rounded text-sm transition-colors ${
+                                                    deleting[file.id]
+                                                        ? 'bg-gray-300 text-gray-500 cursor-not-allowed border-gray-300'
+                                                        : isHovered 
+                                                            ? 'bg-red-600 border-red-600 text-white hover:bg-red-700' 
+                                                            : 'bg-black text-gray-200 border-gray-600 hover:bg-gray-800'
+                                                }`}
+                                                title="Delete normalized file"
+                                            >
+                                                {deleting[file.id] ? 'Deleting...' : 'Delete'}
+                                            </button>
+                                        </>
+                                    ) : (
                                         <button
-                                            onClick={() => handleExport(file.id)}
-                                            disabled={exporting[file.id]}
-                                            className={`px-3 py-1 border rounded text-sm transition-colors ${
-                                                exporting[file.id]
+                                            onClick={() => handleDelete(file.id, 'original')}
+                                            disabled={deleting[file.id]}
+                                            className={`ml-2 px-3 py-1 border rounded text-sm transition-colors ${
+                                                deleting[file.id]
                                                     ? 'bg-gray-300 text-gray-500 cursor-not-allowed border-gray-300'
                                                     : isHovered 
-                                                        ? 'bg-primary border-primary text-white hover:bg-primary-hover' 
+                                                        ? 'bg-red-600 border-red-600 text-white hover:bg-red-700' 
                                                         : 'bg-black text-gray-200 border-gray-600 hover:bg-gray-800'
                                             }`}
+                                            title="Delete original file"
                                         >
-                                            {exporting[file.id] 
-                                                ? 'Exporting...' 
-                                                : 'Export'
-                                            }
+                                            {deleting[file.id] ? 'Deleting...' : 'Delete'}
                                         </button>
                                     )}
                                 </div>

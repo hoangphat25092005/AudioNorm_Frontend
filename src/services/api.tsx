@@ -453,6 +453,32 @@ export const exportAllFiles = async (): Promise<Blob> => {
   }
 };
 
+// Delete original audio file
+
+export const deleteOriginalFile = async (fileId: string): Promise<void> => {
+  const token = getToken();
+  const response = await fetch(`${API_URL}/audio/files/original/${fileId}`, {
+    method: 'DELETE',
+    headers: token ? { 'Authorization': `Bearer ${token}` } : {},
+  });
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({}));
+    throw new Error(errorData.detail || 'Failed to delete original file');
+  }
+};
+
+// Delete normalized audio file
+export const deleteNormalizedFile = async (fileId: string): Promise<void> => {
+  const token = getToken();
+  const response = await fetch(`${API_URL}/audio/files/normalized/${fileId}`, {
+    method: 'DELETE',
+    headers: token ? { 'Authorization': `Bearer ${token}` } : {},
+  });
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({}));
+    throw new Error(errorData.detail || 'Failed to delete normalized file');
+  }
+};
 // Additional API functions for audio normalization features
 export const getNormalizationHistory = async (): Promise<any> => {
   try {
