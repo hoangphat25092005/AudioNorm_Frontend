@@ -6,8 +6,7 @@ services:
     staticPublishPath: ./build
     envVars:
       - key: REACT_APP_API_URL
-        value: https://audionorm-backend.onrender.com
-    routes:
+        value: https://audionorm-backend-production-4f5f.up.railway.app
       - type: rewrite
         source: /*
         destination: /index.html
