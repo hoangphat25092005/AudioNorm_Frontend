@@ -104,7 +104,7 @@ const Login: React.FC<LoginProps> = ({ onRegisterClick, onLoginSuccess }) => {
                     </button>
                 </div>
 
-                <button 
+                {/* <button  
                     type="button" 
                     onClick={handleGoogleLogin} 
                     className="w-full p-3 bg-gray-400 dark:bg-gray-600 text-black dark:text-white border border-gray-500 dark:border-gray-500 rounded font-medium cursor-pointer transition-colors mb-4 flex items-center justify-center gap-2 hover:bg-gray-500 dark:hover:bg-gray-500"
@@ -113,7 +113,7 @@ const Login: React.FC<LoginProps> = ({ onRegisterClick, onLoginSuccess }) => {
                             {FcGoogle({ className: "w-5 h-5" })}
                         </span>
                     Log in with Google
-                </button>
+                </button>*/}
 
                 <button 
                     type="submit"
